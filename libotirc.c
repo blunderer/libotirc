@@ -224,22 +224,18 @@ void* irc_service(void * t)
 						strcpy(msg.mesg, mesg);
 						
 						if((strlen(chan) == 0)&&(strlen(dest) == 0))	{
-							fprintf(stdout,"cb cmd\n");
 							if(_g_bot[i]->on_cmd)	{
 								_g_bot[i]->on_cmd(_g_bot[i], this_chan, &msg, _g_bot[i]->on_cmd_data);
 							}
 						} else if(strlen(chan) == 0)	{
-							fprintf(stdout,"cb prv\n");
 							if(_g_bot[i]->on_prv)	{
 								_g_bot[i]->on_prv(_g_bot[i], this_chan, &msg, _g_bot[i]->on_prv_data);
 							}
 						} else if(strlen(dest) == 0)	{
-							fprintf(stdout,"cb msg\n");
 							if(_g_bot[i]->on_msg)	{
 								_g_bot[i]->on_msg(_g_bot[i], this_chan, &msg, _g_bot[i]->on_msg_data);
 							}
 						} else {
-							fprintf(stdout,"cb tom\n");
 							if(_g_bot[i]->on_tom)	{
 								_g_bot[i]->on_tom(_g_bot[i], this_chan, &msg, _g_bot[i]->on_tom_data);
 							}
@@ -327,7 +323,6 @@ PUBLIC_API void irc_call_on_chan_message(irc_bot_t* bot, irc_bot_callback cb, vo
 {
 	bot->on_msg = cb;
 	bot->on_msg_data = data;
-	fprintf(stderr,"set %p to %p",bot->on_msg, bot );
 }
 
 PUBLIC_API void irc_call_on_chan_message_to_me(irc_bot_t* bot, irc_bot_callback cb, void *data)
