@@ -25,14 +25,18 @@
 
 #include "libotirc.h"
 
-int g_debug = 0;
+int g_debug = 1;
 
 irc_bot_t *irc_create_bot(char *nick)
 {
 	irc_bot_t *bot = (irc_bot_t*)malloc(sizeof(irc_bot_t));
 	memset(bot, 0, sizeof(irc_bot_t));
-	strncpy(bot->name, nick, IRC_FROM_SIZE);
-	return bot;
+	if(nick)	{
+		strncpy(bot->name, nick, IRC_FROM_SIZE);
+		return bot;
+	} 
+	free(bot);
+	return NULL;
 }
 
 void irc_destroy_bot(irc_bot_t *bot)
@@ -197,8 +201,14 @@ void* irc_service(void * t)
 		if(status > 0)	{
 			for(i = 0; i < _irc_bot_count; i++)     {
 				if(FD_ISSET(_g_bot[i]->soc, &rfds))	{
-					memset(data, 0, 2048);
-					recv(_g_bot[i]->soc, data, IRC_DATA_SIZE, 0);
+					char cgot = 0;
+					int offset = 0;
+					memset(data, 0, IRC_DATA_SIZE);
+					
+					while((offset < IRC_DATA_SIZE)&&(cgot != '\n'))	{
+						recv(_g_bot[i]->soc, &cgot, 1, 0);
+						data[offset++] = cgot;
+					}
 					
 					if(g_debug)	{
 						fprintf(stdout,">>>> %s <<<<\n",data);
@@ -232,14 +242,16 @@ void* irc_service(void * t)
 								_g_bot[i]->on_prv(_g_bot[i], this_chan, &msg, _g_bot[i]->on_prv_data);
 							}
 						} else if(strlen(dest) == 0)	{
-							if(_g_bot[i]->on_msg)	{
-								_g_bot[i]->on_msg(_g_bot[i], this_chan, &msg, _g_bot[i]->on_msg_data);
+							if(strstr(mesg, _g_bot[i]->name))	{
+								if(_g_bot[i]->on_tom)	{
+									_g_bot[i]->on_tom(_g_bot[i], this_chan, &msg, _g_bot[i]->on_tom_data);
+								}
+							} else	{
+								if(_g_bot[i]->on_msg)	{
+									_g_bot[i]->on_msg(_g_bot[i], this_chan, &msg, _g_bot[i]->on_msg_data);
+								}
 							}
-						} else {
-							if(_g_bot[i]->on_tom)	{
-								_g_bot[i]->on_tom(_g_bot[i], this_chan, &msg, _g_bot[i]->on_tom_data);
-							}
-						}
+						} else { ; }
 					}
 				}
 			}
@@ -293,8 +305,9 @@ PRIVATE_API char * get_target(char * data, char * user_to, char * chan)
 	return endtarget+1;
 }
 
-PRIVATE_API void parse_message(char * data, char * to, char * from, char * chan, char * msg)	{
+PRIVATE_API int parse_message(char * data, char * to, char * from, char * chan, char * msg)	{
 	int i;
+
 	/* get sender */
 	data = get_user(data, from);
 	i = strlen(from)-1;
@@ -311,6 +324,8 @@ PRIVATE_API void parse_message(char * data, char * to, char * from, char * chan,
 	strcpy(msg, data);
 	i = strlen(msg)-1;
 	while((msg[i] == ' ')||(msg[i] == '\t')) { msg[i--] = '\0'; }
+
+	return 0;
 }
 
 PUBLIC_API void irc_call_on_command(irc_bot_t* bot, irc_bot_callback cb, void *data)

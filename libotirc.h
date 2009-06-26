@@ -115,7 +115,7 @@ PRIVATE_API pthread_t _irc_bot_service;
 
 PRIVATE_API char * get_target(char * data, char * user_to, char * chan);
 PRIVATE_API char * get_user(char * data, char * user_from);
-PRIVATE_API void parse_message(char * data, char * to, char * from, char * chan, char * msg);
+PRIVATE_API int parse_message(char * data, char * to, char * from, char * chan, char * msg);
 PRIVATE_API void* irc_service(void * t);
 
 PUBLIC_API irc_bot_t* irc_create_bot(char *nick);
