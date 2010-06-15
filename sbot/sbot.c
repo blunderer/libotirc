@@ -42,18 +42,10 @@ int sbot_command(irc_bot_t* bot, irc_chan_t *chan, irc_msg_t *msg, void *data)
 			} else {
 				irc_send_private_message(bot, msg->from, str);
 			}
-		} else {
-			if(data == (void*)1) {
-				irc_send_message_to(bot, chan, msg->from, "Unknown command");
-			} else {
-				irc_send_private_message(bot, msg->from, "Unknown command");
-			}
 		}
 	} else if(ret == 1) {
 		if(strlen(str)) {
 			irc_send_private_message(bot, msg->from, str);
-		} else {
-			irc_send_private_message(bot, msg->from, "Unknown command");
 		}
 	} else if(ret == 2) {
 		irc_send_command(bot, join_cmd, str);
