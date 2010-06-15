@@ -98,26 +98,6 @@ typedef enum {
 	pong_cmd
 } irc_commande_t;
 
-PRIVATE_API char* irc_commands[10] = {
-	"PING",
-	"JOIN",
-	"PART",
-	"QUIT",
-	"PRIVMSG",
-	"NICK",
-	"USER",
-	"PONG"
-};
-
-PRIVATE_API int _irc_bot_count = 0;
-PRIVATE_API irc_bot_t* _g_bot[IRC_MAX_BOT];
-PRIVATE_API pthread_t _irc_bot_service;
-
-PRIVATE_API char * get_target(char * data, char * user_to, char * chan);
-PRIVATE_API char * get_user(char * data, char * user_from);
-PRIVATE_API int parse_message(char * data, char * to, char * from, char * chan, char * msg);
-PRIVATE_API void* irc_service(void * t);
-
 PUBLIC_API irc_bot_t* irc_create_bot(char *nick);
 PUBLIC_API void irc_destroy_bot(irc_bot_t* bot);
 
