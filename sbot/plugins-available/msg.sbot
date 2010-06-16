@@ -1,3 +1,6 @@
 #!/bin/bash
 
-echo hello $1
+# Chan Logger: $1 is the chan name and $2 the message
+echo "("$(date "+%d/%m/%y %H:%M:%S")"):" $2 >> log_$1.txt
+
+
