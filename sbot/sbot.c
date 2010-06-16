@@ -2,8 +2,27 @@
 #include "libotirc.h"
 
 int running = 1;
+char basepath[512];
 
-int sbot_command(irc_bot_t* bot, irc_chan_t *chan, irc_msg_t *msg, void *data)
+int sbot_exec_message(irc_bot_t* bot, irc_chan_t *chan, irc_msg_t *msg, void * data)
+{
+	int i;
+	char libcommand[1024];
+	char str[1024];
+	for(i = strlen(msg->mesg); (msg->mesg[i] == '\0') || (msg->mesg[i] == ' ') || (msg->mesg[i] == '\n' || (msg->mesg[i] == '\r')) || (msg->mesg[i] == '\t'); i--) msg->mesg[i] = '\0';
+	sprintf(libcommand, "%s/plugins-enabled/msg.sbot %s \"%s\"", basepath, chan->name+1, msg->mesg);
+	printf("%s/plugins-enabled/msg.sbot %s \"%s\"", basepath, chan->name+1, msg->mesg);
+	FILE * cmd = popen(libcommand, "r");
+	memset(str, 0, 1024);
+	fread(str, 1, 1024, cmd);
+	pclose(cmd);
+	if(strlen(str)) {
+		irc_send_message(bot, chan, str);
+	}
+	return 0;
+}
+
+int sbot_exec_command(irc_bot_t* bot, irc_chan_t *chan, irc_msg_t *msg, void *data)
 {
 	int i = 0;
 	int ret;
@@ -21,24 +40,25 @@ int sbot_command(irc_bot_t* bot, irc_chan_t *chan, irc_msg_t *msg, void *data)
 	command[i] = '\0';
 	arguments = command+i+1;
 
-	if(strcmp(command, "quit") == 0) {
-		irc_send_command(bot, quit_cmd, arguments);
-		return 0;
+	if(data == (void*)2) {
+		if(strcmp(command, "quit") == 0) {
+			irc_send_command(bot, quit_cmd, arguments);
+			running = 0;
+			return 0;
+		}
 	}
 
-	sprintf(libcommand, "./%s.sbot %s %s", command, msg->from, arguments);
+	sprintf(libcommand, "%s/plugins-enabled/%s.sbot %s %s", basepath, command, msg->from, arguments);
 
 	FILE * cmd = popen(libcommand, "r");
 	memset(str, 0, 1024);
 	fread(str, 1, 1024, cmd);
 	ret = (pclose(cmd) >> 8) & 0xff;
 
-	printf("ret = %d\n",ret);
-
 	if(ret == 0) {
 		if(strlen(str)) {
 			if(data == (void*)1) {
-				irc_send_message_to(bot, chan, msg->from, str);
+				irc_send_message(bot, chan, str);
 			} else {
 				irc_send_private_message(bot, msg->from, str);
 			}
@@ -55,6 +75,13 @@ int sbot_command(irc_bot_t* bot, irc_chan_t *chan, irc_msg_t *msg, void *data)
 	return 0;
 }
 
+int sbot_command(irc_bot_t* bot, irc_chan_t *chan, irc_msg_t *msg, void *data)
+{
+	sbot_exec_command(bot, chan, msg, data);
+	sbot_exec_message(bot, chan, msg, data);
+	return 0;
+}
+
 int main(int argc, const char ** argv)
 {
 	int i;
@@ -65,6 +92,12 @@ int main(int argc, const char ** argv)
 			name = (char*)argv[0] + i + 1;
 		}
 	}
+	
+	memset(basepath, 0, 512);
+	getcwd(basepath, 512);
+	strcat(basepath, "/");
+	strncat(basepath, argv[0], strlen(argv[0])-strlen(name));
+	
 	irc_bot_t* sbot = irc_create_bot(name);
 
 	if(argc > 2) {
@@ -77,11 +110,14 @@ int main(int argc, const char ** argv)
 	usleep(1000000);
 
 	for(i = 3; i < argc; i++) {
-		irc_join(sbot, (char*)argv[i]);
+		char channame[128];
+		sprintf(channame, "#%s", argv[i]);
+		irc_join(sbot, channame);
 	}
 
+	irc_call_on_chan_message(sbot, sbot_exec_message, (void*)1);
 	irc_call_on_chan_message_to_me(sbot, sbot_command, (void*)1);
-	irc_call_on_chan_message_private(sbot, sbot_command, (void*)2);
+	irc_call_on_chan_message_private(sbot, sbot_exec_command, (void*)2);
 
 	while(running) {
 		usleep(100000);
