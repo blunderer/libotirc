@@ -4,7 +4,7 @@ INC=sbot.h
 OBJ=$(SRC:.c=.o)
 
 LDFLAGS=-lpthread -L .. -lotirc
-CFLAGS=-I. -I.. -g -Wall -Wextra -fPIC
+CFLAGS=-I. -I.. -g -Wall -Wextra -Wno-unused -fPIC
 
 TARGET=sbot
 
