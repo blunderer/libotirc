@@ -47,6 +47,11 @@ PRIVATE_API void* irc_service(void * t);
 
 int g_debug = 1;
 
+/*
+ * create a bot object
+ * This function allocate a bot object and return a pointer
+ * to the new structure or NULL if something went wrong.
+ */
 irc_bot_t *irc_create_bot(char *nick)
 {
 	irc_bot_t *bot = (irc_bot_t*)malloc(sizeof(irc_bot_t));
@@ -59,6 +64,11 @@ irc_bot_t *irc_create_bot(char *nick)
 	return NULL;
 }
 
+/*
+ * destroy a bot object
+ * This function destroy a previously allocated bot object
+ * and close any running connections.
+ */
 void irc_destroy_bot(irc_bot_t *bot)
 {
 	irc_disconnect_bot(bot);
@@ -71,6 +81,10 @@ void irc_destroy_bot(irc_bot_t *bot)
 	free(bot);
 }
 
+/*
+ * disconnect a bot
+ * This function disconnect a bot.
+ */
 void irc_disconnect_bot(irc_bot_t* bot)
 {
 	int i;
@@ -86,6 +100,10 @@ void irc_disconnect_bot(irc_bot_t* bot)
 	}
 }
 
+/* connect bot
+ * This function connect a bot to a server and request a user name.
+ * Return value is 0 if everything went well.
+ */
 int irc_connect_bot(irc_bot_t* bot, char *addr, int port)
 {
 	int i; 
@@ -137,6 +155,10 @@ int irc_connect_bot(irc_bot_t* bot, char *addr, int port)
 	return 0;
 }
 
+/*
+ * send command function
+ * This function asks the bot to send a command to the irc server
+ */
 int irc_send_command(irc_bot_t* bot, irc_commande_t cmd, char * arg)
 {
 	char data[IRC_DATA_SIZE];
@@ -160,6 +182,10 @@ int irc_send_command(irc_bot_t* bot, irc_commande_t cmd, char * arg)
 	return 0;
 }
 
+/* 
+ * send message
+ * This function asks the bot to send a message on a channel.
+ */
 int irc_send_message(irc_bot_t* bot, irc_chan_t *chan, char *msg)
 {
 	char data[IRC_DATA_SIZE];
@@ -171,6 +197,11 @@ int irc_send_message(irc_bot_t* bot, irc_chan_t *chan, char *msg)
 	return 0;
 }
 
+/* 
+ * send message to
+ * This function asks the bot to send a message on a channel
+ * to a specific user.
+ */
 int irc_send_message_to(irc_bot_t* bot, irc_chan_t *chan, char * user, char *msg)
 {
 	char data[IRC_DATA_SIZE];
@@ -182,6 +213,11 @@ int irc_send_message_to(irc_bot_t* bot, irc_chan_t *chan, char * user, char *msg
 	return 0;
 }
 
+/* 
+ * send private message
+ * This function asks the bot to send a private message
+ * to a specific user
+ */
 int irc_send_private_message(irc_bot_t* bot, char * user, char *msg)
 {
 	char data[IRC_DATA_SIZE];
@@ -193,6 +229,11 @@ int irc_send_private_message(irc_bot_t* bot, char * user, char *msg)
 	return 0;
 }
 
+/* 
+ * main bot thread
+ * this function is in charge of receiving datas from the irc socket
+ * and process them by parsing the data and calling apropriate callbacks
+ */
 void* irc_service(void * t)
 {
 	while(_irc_bot_count > 0)	{
@@ -239,8 +280,9 @@ void* irc_service(void * t)
 					}
 
 					parse_message(data, dest, from, chan, mesg);
-
+					
 					if(strlen(from) == 0)	{
+						/* if no from field: this is an IRC command */
 						if(strncasecmp(mesg, "PING", strlen("PING")) == 0)       {
 							/* handle PING answer */
 							irc_send_command(_g_bot[i], pong_cmd, _g_bot[i]->server);
@@ -259,19 +301,23 @@ void* irc_service(void * t)
 						strcpy(msg.mesg, mesg);
 						
 						if((strlen(chan) == 0)&&(strlen(dest) == 0))	{
+							/* no chand ans dest field: this is a user command */
 							if(_g_bot[i]->on_cmd)	{
 								_g_bot[i]->on_cmd(_g_bot[i], this_chan, &msg, _g_bot[i]->on_cmd_data);
 							}
 						} else if(strlen(chan) == 0)	{
+							/* no chan field, this is a private message */
 							if(_g_bot[i]->on_prv)	{
 								_g_bot[i]->on_prv(_g_bot[i], this_chan, &msg, _g_bot[i]->on_prv_data);
 							}
 						} else if(strlen(dest) == 0)	{
 							if(strstr(mesg, _g_bot[i]->name))	{
+								/* no dest: if our name is found in the message, this is a message to */
 								if(_g_bot[i]->on_tom)	{
 									_g_bot[i]->on_tom(_g_bot[i], this_chan, &msg, _g_bot[i]->on_tom_data);
 								}
 							} else	{
+								/* else, this is just a regular message */
 								if(_g_bot[i]->on_msg)	{
 									_g_bot[i]->on_msg(_g_bot[i], this_chan, &msg, _g_bot[i]->on_msg_data);
 								}
@@ -285,7 +331,10 @@ void* irc_service(void * t)
 	return t;
 }
 
-
+/* 
+ * get user
+ * This function returns the user that sent those data.
+ */
 PRIVATE_API char * get_user(char * data, char * user_from)
 {
 	char *enduser;
@@ -299,6 +348,12 @@ PRIVATE_API char * get_user(char * data, char * user_from)
 	return enduser+1;
 }
 
+/* 
+ * get target
+ * This function returns the destination information about datas:
+ *  - the chan to where it is sent
+ *  - the user that is targeted if any
+ */
 PRIVATE_API char * get_target(char * data, char * user_to, char * chan)
 {
 	char *target;
@@ -330,7 +385,13 @@ PRIVATE_API char * get_target(char * data, char * user_to, char * chan)
 	return endtarget+1;
 }
 
-PRIVATE_API int parse_message(char * data, char * to, char * from, char * chan, char * msg)	{
+/*
+ * parse a raw message 
+ * This function parse the raw message and return usefull information
+ * by calling get_user and get_target functions.
+ */
+PRIVATE_API int parse_message(char * data, char * to, char * from, char * chan, char * msg)	
+{
 	int i;
 
 	/* get sender */
@@ -353,30 +414,50 @@ PRIVATE_API int parse_message(char * data, char * to, char * from, char * chan, 
 	return 0;
 }
 
+/*
+ * set command callback
+ * This function set the callback to be called when command is received
+ */
 PUBLIC_API void irc_call_on_command(irc_bot_t* bot, irc_bot_callback cb, void *data)
 {
 	bot->on_cmd = cb;
 	bot->on_cmd_data = data;
 }
 
+/*
+ * set message callback
+ * This function set the callback to be called when a message is received
+ */
 PUBLIC_API void irc_call_on_chan_message(irc_bot_t* bot, irc_bot_callback cb, void *data)
 {
 	bot->on_msg = cb;
 	bot->on_msg_data = data;
 }
 
+/*
+ * set message to callback
+ * This function set the callback to be called when a message to is received
+ */
 PUBLIC_API void irc_call_on_chan_message_to_me(irc_bot_t* bot, irc_bot_callback cb, void *data)
 {
 	bot->on_tom = cb;
 	bot->on_tom_data = data;
 }
 
+/*
+ * set private message callback
+ * This function set the callback to be called when a private message is received
+ */
 PUBLIC_API void irc_call_on_chan_message_private(irc_bot_t* bot, irc_bot_callback cb, void *data)
 {
 	bot->on_prv = cb;
 	bot->on_prv_data = data;
 }
 
+/*
+ * join command
+ * This function sends a join command to the irc server
+ */
 PUBLIC_API irc_chan_t* irc_join(irc_bot_t* bot, char * name)
 {
 	irc_chan_t *ptr = bot->chans;
@@ -397,6 +478,10 @@ PUBLIC_API irc_chan_t* irc_join(irc_bot_t* bot, char * name)
 	return ptr;
 }
 
+/*
+ * part command
+ * This function sends a part command to the irc server
+ */
 PUBLIC_API void irc_part(irc_bot_t* bot, irc_chan_t* chan)
 {
 	irc_chan_t *ptr = bot->chans;
