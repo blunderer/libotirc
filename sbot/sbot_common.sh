@@ -1,0 +1,20 @@
+#ifdef NOT_DEFINED
+#!/bin/bash
+
+ANSWER_AUTO=0
+ANSWER_PRIVATE=1
+ANSWER_JOIN=2
+ANSWER_PART=3
+
+CHAN_NAME=$1
+MESSAGE=$2
+
+#else
+
+#define ANSWER_AUTO	0
+#define ANSWER_PRIVATE	1
+#define ANSWER_JOIN	2
+#define ANSWER_PART	3
+
+#endif
+
