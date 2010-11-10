@@ -45,26 +45,32 @@ static void exec_action(irc_bot_t *bot, char * command, irc_chan_t * chan, char 
 	fread(str, 1, 1024, cmd);
 	ret = (pclose(cmd) >> 8) & 0xff;
 
-	/* process command output: do we have to answer something or take any action on the irc server */
-	if(ret == ANSWER_AUTO) {
-		if(strlen(str)) {
-			if(data == (void*)1) {
-				irc_send_message(bot, chan, str);
-			} else {
-				if(from) {
-					irc_send_private_message(bot, from, str);
+	/* data = 0 if this is a round exec command: ie exec command on something sent by the bot himself */
+	if(data != (void*)0) {
+		/* process command output: do we have to answer something or take any action on the irc server */
+		if(ret == ANSWER_AUTO) {
+			if(strlen(str)) {
+				if(data == (void*)1) {
+					char libcommand[1024];
+					irc_send_message(bot, chan, str);
+					sprintf(libcommand, "%s/plugins-enabled/msg.sbot %s %s \"%s\"", basepath, chan->name+1, bot->name, str);
+					exec_action(bot, libcommand, chan, str, (void*)0);
+				} else {
+					if(from) {
+						irc_send_private_message(bot, from, str);
+					}
 				}
 			}
-		}
-	} else if(ret == ANSWER_PRIVATE) {
-		if(strlen(str) && from) {
-			irc_send_private_message(bot, from, str);
-		}
-	} else if(ret == ANSWER_JOIN) {
-		irc_send_command(bot, join_cmd, str);
-	} else if(ret == ANSWER_PART) {
-		irc_send_command(bot, part_cmd, str);
-	} 
+		} else if(ret == ANSWER_PRIVATE) {
+			if(strlen(str) && from) {
+				irc_send_private_message(bot, from, str);
+			}
+		} else if(ret == ANSWER_JOIN) {
+			irc_send_command(bot, join_cmd, str);
+		} else if(ret == ANSWER_PART) {
+			irc_send_command(bot, part_cmd, str);
+		} 
+	}
 	return;
 }
 
