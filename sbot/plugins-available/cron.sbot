@@ -1,0 +1,8 @@
+#!/bin/bash
+
+. $(dirname $0)/../sbot_common.sh
+
+echo plop
+
+exit $ANSWER_AUTO
+
