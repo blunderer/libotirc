@@ -278,6 +278,9 @@ void* irc_service(void * t)
 					if(strlen(data) == 0) {
 						return NULL;
 					}
+					if(data[0] != ':') {
+						continue;
+					}
 
 					parse_message(data, dest, from, chan, mesg);
 					
@@ -397,19 +400,24 @@ PRIVATE_API int parse_message(char * data, char * to, char * from, char * chan, 
 	/* get sender */
 	data = get_user(data, from);
 	i = strlen(from)-1;
-	while((from[i] == ' ')||(from[i] == '\t')) { from[i--] = '\0'; }
+	if(i > 0)
+		while((from[i] == ' ')||(from[i] == '\t')) { from[i--] = '\0'; }
+
 
 	/* get dest */
 	data = get_target(data, to, chan);
 	i = strlen(chan)-1;
-	while((chan[i] == ' ')||(chan[i] == '\t')) { chan[i--] = '\0'; }
+	if(i > 0)
+		while((chan[i] == ' ')||(chan[i] == '\t')) { chan[i--] = '\0'; }
 	i = strlen(to)-1;
-	while((to[i] == ' ')||(to[i] == '\t')) { to[i--] = '\0'; }
+	if(i > 0)
+		while((to[i] == ' ')||(to[i] == '\t')) { to[i--] = '\0'; }
 	
 	/* get message */
 	strcpy(msg, data);
 	i = strlen(msg)-1;
-	while((msg[i] == ' ')||(msg[i] == '\t')) { msg[i--] = '\0'; }
+	if(i > 0)
+		while((msg[i] == ' ')||(msg[i] == '\t')) { msg[i--] = '\0'; }
 
 	return 0;
 }
