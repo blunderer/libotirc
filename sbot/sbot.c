@@ -9,6 +9,7 @@
  * read arguments as 
  *  - $CHAN_NAME:	channel name
  *  - $MESSAGE:		message
+ *  - $USER:		the message autor
  * write to stdout the answer to send (max 1024 char)
  * return the exit code following those rules depending on required action
  *  - $ANSWER_AUTO: 	answer to the user (private or in channel depending on the input message
@@ -18,6 +19,9 @@
  *
  * It will also call the special command "msg.sbot" for each received message
  * and output stdout as answer on the same chan
+ *
+ * It will also call the special command "cron.sbot" each CRON_PERIOD milliseconds
+ * 
  */
 
 #include "libotirc.h"
@@ -25,6 +29,44 @@
 
 int running = 1;
 char basepath[512];
+
+#define CRON_PERIOD 10000
+
+/* 
+ * exec an action and process output
+ */
+static void exec_action(irc_bot_t *bot, char * command, irc_chan_t * chan, char * from, void * data)
+{
+	int ret = 0;
+	char str[1024];
+
+	FILE * cmd = popen(command, "r");
+	memset(str, 0, 1024);
+	fread(str, 1, 1024, cmd);
+	ret = (pclose(cmd) >> 8) & 0xff;
+
+	/* process command output: do we have to answer something or take any action on the irc server */
+	if(ret == ANSWER_AUTO) {
+		if(strlen(str)) {
+			if(data == (void*)1) {
+				irc_send_message(bot, chan, str);
+			} else {
+				if(from) {
+					irc_send_private_message(bot, from, str);
+				}
+			}
+		}
+	} else if(ret == ANSWER_PRIVATE) {
+		if(strlen(str) && from) {
+			irc_send_private_message(bot, from, str);
+		}
+	} else if(ret == ANSWER_JOIN) {
+		irc_send_command(bot, join_cmd, str);
+	} else if(ret == ANSWER_PART) {
+		irc_send_command(bot, part_cmd, str);
+	} 
+	return;
+}
 
 /* 
  * on message callback
@@ -34,26 +76,17 @@ char basepath[512];
 int sbot_exec_message(irc_bot_t* bot, irc_chan_t *chan, irc_msg_t *msg, void * data)
 {
 	int i;
-	char str[1024];
 	char libcommand[1024];
 	
 	/* remove trailing white char */
 	for(i = strlen(msg->mesg); (msg->mesg[i] == '\0') || (msg->mesg[i] == ' ') || (msg->mesg[i] == '\n' || (msg->mesg[i] == '\r')) || (msg->mesg[i] == '\t'); i--) msg->mesg[i] = '\0';
 
 	/* generate command to execute for this msg */
-	sprintf(libcommand, "%s/plugins-enabled/msg.sbot %s \"%s\"", basepath, chan->name+1, msg->mesg);
-	printf("%s/plugins-enabled/msg.sbot %s \"%s\"", basepath, chan->name+1, msg->mesg);
+	sprintf(libcommand, "%s/plugins-enabled/msg.sbot %s %s \"%s\"", basepath, chan->name+1, msg->from, msg->mesg);
 
 	/* exec the command */
-	FILE * cmd = popen(libcommand, "r");
-	memset(str, 0, 1024);
-	fread(str, 1, 1024, cmd);
-	pclose(cmd);
+	exec_action(bot, libcommand, chan, msg->from, data);
 
-	/* if output is not empty: write to the chan */
-	if(strlen(str)) {
-		irc_send_message(bot, chan, str);
-	}
 	return 0;
 }
 
@@ -64,7 +97,6 @@ int sbot_exec_message(irc_bot_t* bot, irc_chan_t *chan, irc_msg_t *msg, void * d
  */
 int sbot_exec_command(irc_bot_t* bot, irc_chan_t *chan, irc_msg_t *msg, void *data)
 {
-	int ret;
 	int i = 0;
 	char * arguments;
 	char str[1024];
@@ -94,32 +126,15 @@ int sbot_exec_command(irc_bot_t* bot, irc_chan_t *chan, irc_msg_t *msg, void *da
 	}
 
 	/* generate command to execute */
-	sprintf(libcommand, "%s/plugins-enabled/%s.sbot %s %s", basepath, command, msg->from, arguments);
+	if(chan) {
+		sprintf(libcommand, "%s/plugins-enabled/%s.sbot %s %s %s", basepath, command, chan->name+1, msg->from, arguments);
+	} else {
+		sprintf(libcommand, "%s/plugins-enabled/%s.sbot PRIVATE %s %s", basepath, command, msg->from, arguments);
+	}
 
 	/* execute command */
-	FILE * cmd = popen(libcommand, "r");
-	memset(str, 0, 1024);
-	fread(str, 1, 1024, cmd);
-	ret = (pclose(cmd) >> 8) & 0xff;
+	exec_action(bot, libcommand, chan, msg->from, data);
 
-	/* process command output: do we have to answer something or take any action on the irc server */
-	if(ret == ANSWER_AUTO) {
-		if(strlen(str)) {
-			if(data == (void*)1) {
-				irc_send_message(bot, chan, str);
-			} else {
-				irc_send_private_message(bot, msg->from, str);
-			}
-		}
-	} else if(ret == ANSWER_PRIVATE) {
-		if(strlen(str)) {
-			irc_send_private_message(bot, msg->from, str);
-		}
-	} else if(ret == ANSWER_JOIN) {
-		irc_send_command(bot, join_cmd, str);
-	} else if(ret == ANSWER_PART) {
-		irc_send_command(bot, part_cmd, str);
-	} 
 	return 0;
 }
 
@@ -140,6 +155,8 @@ int sbot_command(irc_bot_t* bot, irc_chan_t *chan, irc_msg_t *msg, void *data)
 int main(int argc, const char ** argv)
 {
 	int i;
+	int cnt = 0;
+	char libcommand[1024];
 
 	char * name = (char *)argv[0];
 	for(i = 0; argv[0][i] != '\0'; i++) {
@@ -149,14 +166,23 @@ int main(int argc, const char ** argv)
 	}
 	
 	memset(basepath, 0, 512);
-	getcwd(basepath, 512);
-	strcat(basepath, "/");
-	strncat(basepath, argv[0], strlen(argv[0])-strlen(name));
-	
+
+	if(argv[0][0] == '/') {
+		strncat(basepath, argv[0], strlen(argv[0])-strlen(name));
+	} else {
+		getcwd(basepath, 512);
+		strcat(basepath, "/");
+		strncat(basepath, argv[0], strlen(argv[0])-strlen(name));
+	}
+	sprintf(libcommand, "%s/plugins-enabled/cron.sbot", basepath);
+
 	irc_bot_t* sbot = irc_create_bot(name);
 
 	if(argc > 2) {
-		irc_connect_bot(sbot, (char*)argv[1], atoi((char*)argv[2]));
+		if(irc_connect_bot(sbot, (char*)argv[1], atoi((char*)argv[2])) < 0) {
+			printf("cannot connect bot to server\n");
+			exit(1);
+		}
 	} else {
 		printf("syntax: ./[bot name] [server] [port] [chan1] [chan2] ...\n");
 		exit(0);
@@ -179,7 +205,16 @@ int main(int argc, const char ** argv)
 
 	/* main loop: do nothing */
 	while(running) {
-		usleep(100000);
+		cnt++;
+		if((cnt % CRON_PERIOD) == 1) {
+			/* exec the command */
+			irc_chan_t * chan = sbot->chans;
+			while(chan) {
+				exec_action(sbot, libcommand, chan, NULL, (void*)1);
+				chan = chan->next;
+			}
+		}
+		usleep(1000);
 	}
 
 	/* disconnect the bot */
